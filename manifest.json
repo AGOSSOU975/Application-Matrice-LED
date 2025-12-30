@@ -1,0 +1,86 @@
+{
+  "name": "Afficheur LED ESP32",
+  "short_name": "LED ESP32",
+  "description": "Application de contrôle pour afficheur LED ESP32 avec gestion des messages, couleurs et animations",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e40af",
+  "orientation": "portrait-primary",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "./images/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./images/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./images/logoPerso.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./images/logoPerso.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "./images/screenshot1.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Écran de connexion ESP32"
+    },
+    {
+      "src": "./images/screenshot2.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Gestion des messages LED"
+    }
+  ],
+  "categories": ["utilities", "productivity", "lifestyle"],
+  "lang": "fr-FR",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": [
+    {
+      "name": "Connexion rapide",
+      "short_name": "Connexion",
+      "description": "Accéder directement à la page de connexion ESP32",
+      "url": "./?tab=connection",
+      "icons": [
+        {
+          "src": "./images/logo.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "short_name": "Messages",
+      "description": "Gérer les messages de l'afficheur LED",
+      "url": "./?tab=messages",
+      "icons": [
+        {
+          "src": "./images/logo.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

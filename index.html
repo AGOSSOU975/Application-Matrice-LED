@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1e40af">
+  <title>Afficheur LED</title>
+  
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="images/logo.png">
+  <link rel="apple-touch-icon" href="images/logo.png">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes scrollLeft {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    @keyframes fade {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-scroll { animation: scrollLeft 3s linear infinite; }
+    .animate-fade { animation: fade 2s ease-in-out infinite; }
+    .animate-slideup { animation: slideUp 0.8s ease-out; }
+    .animate-pulse-custom { animation: pulse 2s ease-in-out infinite; }
+    .animate-spin { animation: spin 2s linear infinite; }
+    .no-animate { animation: none !important; }
+    * { -webkit-tap-highlight-color: transparent; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 shadow-lg">
+        <h1 class="text-2xl font-bold flex items-center gap-2">
+          <img src="images/logoPerso.png" alt="Logo" class="w-10 h-10 rounded-lg object-contain bg-white/10 p-1" onerror="this.style.display='none'">
+          Afficheur LED
+        </h1>
+        <p class="text-sm mt-1 opacity-90" id="status">Non connecté</p>
+      </div>
+      
+      <div class="p-4 pb-24">
+        <div id="errorAlert" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-bold">Erreur</p>
+              <p class="text-sm" id="errorMessage"></p>
+            </div>
+            <button onclick="hideError()" class="text-red-500 hover:text-red-700 font-bold">✕</button>
+          </div>
+        </div>
+        <div id="content"></div>
+      </div>
+
+      <div class="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
+        <div class="flex justify-around" id="tabs"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    console.log('Chargement...');
+    
+    let activeTab = 'connection';
+    let isConnected = false;
+    let espIP = '';
+    let messages = {
+      matin: 'BONJOUR ET BIENVENUE',
+      jour: 'BONNE JOURNEE A TOUS',
+      soir: 'BONNE SOIREE A TOUS'
+    };
+    let useMultiColor = false;
+    let multiColors = ['#FF0000', '#00FF00'];
+    let singleColor = '#FF0000';
+    let isAnimating = true;
+    let animEffect = 'scroll';
+    let isLoading = false;
+    let showSplash = true;
+    
+
+
+
+   function initApp() {
+  // 1. Afficher le splash UNE FOIS
+  showSplash = true;
+  renderApp();
+
+  // 2. Après 6 secondes → afficher l'application
+  setTimeout(() => {
+    showSplash = false;
+    activeTab = 'connection';
+    renderApp(); // ⚠️ UN SEUL render après splash
+  }, 6000);
+}
+
+
+    function renderApp() {
+      const root = document.getElementById('root');
+      
+      if (showSplash) {
+        root.innerHTML = `
+          <div class="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 px-4">
+            <div class="text-center animate-slideup">
+              <div class="mb-8 animate-pulse-custom">
+                <img src="images/logoPerso.png" alt="Logo" 
+                     class="w-40 h-40 mx-auto rounded-3xl shadow-2xl object-contain bg-white p-4"
+                     style="filter: brightness(1.1) contrast(1.05);"
+                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'160\' height=\'160\'%3E%3Crect fill=\'%234f46e5\' width=\'160\' height=\'160\' rx=\'24\'/%3E%3Ctext x=\'50%25\' y=\'50%25\' dominant-baseline=\'middle\' text-anchor=\'middle\' font-size=\'80\' fill=\'white\'%3EL%3C/text%3E%3C/svg%3E'">
+              </div>
+              <h1 class="text-5xl font-bold text-white mb-4">Afficheur LED</h1>
+              <p class="text-xl text-blue-200 mb-8">Contrôle intelligent ESP32</p>
+              <div class="flex justify-center gap-2 mb-4">
+                <div class="w-3 h-3 bg-blue-400 rounded-full animate-pulse" style="animation-delay: 0s;"></div>
+                <div class="w-3 h-3 bg-purple-400 rounded-full animate-pulse" style="animation-delay: 0.2s;"></div>
+                <div class="w-3 h-3 bg-pink-400 rounded-full animate-pulse" style="animation-delay: 0.4s;"></div>
+              </div>
+              <div class="animate-spin w-16 h-16 border-4 border-blue-300 border-t-transparent rounded-full mx-auto"></div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      root.innerHTML = `
+        <div class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 relative">
+          <!-- Signature verticale permanente -->
+          <div style="position: fixed; right: 8px; top: 50%; transform: translateY(-50%) rotate(90deg); transform-origin: right center; z-index: 1000;">
+            <p style="font-size: 9px; color: rgba(147, 197, 253, 0.4); white-space: nowrap; font-weight: 300; letter-spacing: 1px;">
+              "Le code est la poésie de la logique" - Elisée Triomphe, Développeur
+            </p>
+          </div>
+
+          <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 shadow-lg">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+              <img src="images/logoPerso.png" alt="Logo" class="w-10 h-10 rounded-lg object-contain bg-white/10 p-1" onerror="this.style.display='none'">
+              Afficheur LED
+            </h1>
+            <p class="text-sm mt-1 opacity-90" id="status">Non connecté</p>
+          </div>
+
+          <div class="p-4 pb-24">
+            <div id="errorAlert" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">
+              <div class="flex justify-between items-start">
+                <div>
+                  <p class="font-bold">Erreur</p>
+                  <p class="text-sm" id="errorMessage"></p>
+                </div>
+                <button onclick="hideError()" class="text-red-500 hover:text-red-700 font-bold">✕</button>
+              </div>
+            </div>
+            <div id="content"></div>
+          </div>
+
+          <div class="fixed bottom-0 left-0 right-0 bg-white border-t shadow-2xl">
+            <div class="flex justify-around" id="tabs"></div>
+          </div>
+        </div>
+      `;
+      
+      updateStatus();
+      renderTabs();
+      renderContent();
+       
+    }
+
+    function showError(message) {
+      document.getElementById('errorMessage').innerHTML = message;
+      document.getElementById('errorAlert').classList.remove('hidden');
+    }
+
+    function hideError() {
+      document.getElementById('errorAlert').classList.add('hidden');
+    }
+
+    function updateStatus() {
+      document.getElementById('status').textContent = isConnected ? 'Connecté à ' + espIP : 'Non connecté';
+    }
+
+   function renderTabs() {
+  const tabs = [
+    { id: 'connection', label: 'Connexion', color: 'from-blue-500 to-blue-700', icon: '' },
+    { id: 'messages', label: 'Messages', color: 'from-green-500 to-green-700', icon: '' },
+    { id: 'time', label: 'Heure', color: 'from-purple-500 to-purple-700', icon: '' },
+    { id: 'settings', label: 'Config', color: 'from-yellow-400 to-yellow-600', icon: '' }
+  ];
+
+  const tabsContainer = document.getElementById('tabs');
+  tabsContainer.innerHTML = tabs.map(tab => `
+    <button onclick="changeTab('${tab.id}')"
+      class="flex-1 flex flex-col items-center py-3 px-2 rounded-lg font-semibold text-white
+             bg-gradient-to-r ${tab.color} transition-all duration-300 ease-in-out
+             ${activeTab === tab.id ? 'scale-105 animate-pulse-custom shadow-xl' : 'hover:scale-105 hover:shadow-md'}">
+      <span class="text-sm mt-1">${tab.label}</span>
+    </button>
+  `).join('');
+}
+
+    function renderContent() {
+      const content = document.getElementById('content');
+      
+      if (activeTab === 'connection') {
+        content.innerHTML = `
+          <div class="bg-white rounded-2xl p-6 shadow-xl">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Connexion ESP32</h2>
+            <div class="space-y-4">
+              <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                <p class="text-sm text-gray-700 mb-2"><strong>Instructions:</strong></p>
+                <ol class="text-xs text-gray-600 space-y-1 list-decimal ml-4">
+                  <li>Connectez-vous au WiFi de votre Localité dont l'ESP est aussi Connecté </li>
+                  <li>Trouvez l'IP de l'ESP dans le moniteur série Arduino</li>
+                  <li>Entrez l'IP ci-dessous et cliquez sur Connecter</li>
+                </ol>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Adresse IP ESP32</label>
+                <input type="text" id="ipInput" value="${espIP}" placeholder="192.168.1.100" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-gray-800">
+              </div>
+              <button onclick="connectESP()" ${isLoading ? 'disabled' : ''} class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg font-semibold ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:from-blue-700 hover:to-blue-800'}">
+                ${isLoading ? 'Connexion...' : 'Connecter'}
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (activeTab === 'messages') {
+        const currentMsg = new Date().getHours() < 10 ? messages.matin : new Date().getHours() < 18 ? messages.jour : messages.soir;
+        
+        content.innerHTML = `
+          <div class="bg-white rounded-2xl p-6 shadow-xl">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Gestion des messages</h2>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-bold mb-2" style="color: #2563eb">Message du matin (avant 10h)</label>
+                <input type="text" id="msgMatin" value="${messages.matin}" class="w-full px-4 py-3 border-2 border-orange-300 rounded-xl focus:border-orange-500 focus:outline-none text-gray-800 bg-gradient-to-r from-orange-50 to-yellow-50 font-medium">
+              </div>
+              <div>
+                <label class="block text-sm font-bold mb-2" style="color: #10b981">Message de la journée (10h-18h)</label>
+                <input type="text" id="msgJour" value="${messages.jour}" class="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:border-blue-500 focus:outline-none text-gray-800 bg-gradient-to-r from-blue-50 to-cyan-50 font-medium">
+              </div>
+              <div>
+                <label class="block text-sm font-bold mb-2" style="color: #ec4899">Message du soir (après 18h)</label>
+                <input type="text" id="msgSoir" value="${messages.soir}" class="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:border-purple-500 focus:outline-none text-gray-800 bg-gradient-to-r from-purple-50 to-pink-50 font-medium">
+              </div>
+
+              <div class="border-t pt-4">
+                <div class="flex items-center justify-between mb-3">
+                  <label class="text-sm font-medium text-gray-700">Mode couleur</label>
+                  <button onclick="toggleColorMode()" class="px-4 py-2 rounded-lg font-semibold text-sm ${useMultiColor ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' : 'bg-gray-200 text-gray-700'}">
+                    ${useMultiColor ? 'Multicolore' : 'Couleur unique'}
+                  </button>
+                </div>
+                <div id="colorSection"></div>
+              </div>
+
+              <button onclick="saveMessages()" ${isLoading ? 'disabled' : ''} class="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-4 rounded-lg font-bold text-lg ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:from-green-700 hover:to-green-800'}">
+                ${isLoading ? 'Envoi en cours...' : 'Enregistrer sur ESP32'}
+              </button>
+              <div id="confirmation" class="hidden text-center text-green-600 font-bold bg-green-50 p-3 rounded-lg">Messages enregistrés avec succès!</div>
+
+              <div class="mt-6 bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-6 shadow-2xl border-2 border-gray-700">
+                <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                  <img src="images/logoPerso.png" alt="Logo" class="w-6 h-6 rounded object-contain" onerror="this.style.display='none'">
+                  Aperçu du message en cours
+                </h3>
+                
+                <div class="bg-black rounded-xl p-4 mb-4 overflow-hidden" style="min-height: 80px">
+                  <div class="h-16 flex items-center justify-center overflow-hidden">
+                    <div id="previewText" class="font-bold text-2xl" style="color: ${singleColor}">
+                      ${currentMsg}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-300 mb-2">Effet d'animation</label>
+                    <div class="grid grid-cols-3 gap-2">
+                      <button onclick="setEffect('scroll')" class="py-2 rounded-lg text-xs font-semibold ${animEffect === 'scroll' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}">Défile</button>
+                      <button onclick="setEffect('blink')" class="py-2 rounded-lg text-xs font-semibold ${animEffect === 'blink' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}">Clignote</button>
+                      <button onclick="setEffect('fade')" class="py-2 rounded-lg text-xs font-semibold ${animEffect === 'fade' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'}">Fondu</button>
+                    </div>
+                  </div>
+
+                  <div class="bg-gray-800 rounded-lg p-3 text-xs text-gray-300">
+                    <div class="flex justify-between mb-1">
+                      <span>Message actif :</span>
+                      <span class="font-semibold text-white">${new Date().getHours() < 10 ? 'Matin' : new Date().getHours() < 18 ? 'Journée' : 'Soir'}</span>
+                    </div>
+                    <div class="flex justify-between mb-1">
+                      <span>Couleur :</span>
+                      <span class="font-semibold" id="colorInfo">${useMultiColor ? multiColors.length + ' couleurs' : singleColor}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>Longueur :</span>
+                      <span class="font-semibold text-white">${currentMsg.length} caractères</span>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-2">
+                    <button onclick="startAnim()" ${isAnimating ? 'disabled' : ''} class="py-2 rounded-lg text-sm font-semibold ${isAnimating ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}">Démarrer</button>
+                    <button onclick="stopAnim()" ${!isAnimating ? 'disabled' : ''} class="py-2 rounded-lg text-sm font-semibold ${!isAnimating ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}">Stop</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        renderColorSection();
+        applyCurrentStyle();
+      } else if (activeTab === 'time') {
+        content.innerHTML = `
+          <div class="bg-white rounded-2xl p-6 shadow-xl">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Cycle d'affichage</h2>
+            <div class="space-y-3">
+              <div class="bg-gradient-to-r from-orange-50 to-yellow-50 p-4 rounded-lg border-l-4 border-orange-500">
+                <p class="font-semibold text-gray-800">1. Message (selon l'heure)</p>
+                <p class="text-sm text-gray-600">Défilement horizontal en boucle</p>
+              </div>
+              <div class="bg-gradient-to-r from-blue-50 to-cyan-50 p-4 rounded-lg border-l-4 border-blue-500">
+                <p class="font-semibold text-gray-800">2. Date (3 secondes)</p>
+                <p class="text-sm text-gray-600">Ouverture/Fermeture puis défilement - JJ/MM/AAAA</p>
+              </div>
+              <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border-l-4 border-purple-500">
+                <p class="font-semibold text-gray-800">3. Heure (3 secondes)</p>
+                <p class="text-sm text-gray-600">Ouverture/Fermeture puis défilement - HH:MM:SS</p>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (activeTab === 'settings') {
+        content.innerHTML = `
+          <div class="bg-white rounded-2xl p-6 shadow-xl">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Configuration</h2>
+            <div class="space-y-4">
+              <div id="installSection" class="hidden bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border-2 border-blue-300">
+                <h3 class="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <span>📱</span>
+                  Installer l'application
+                </h3>
+                <p class="text-sm text-gray-600 mb-3">Installez cette application sur votre appareil pour un accès rapide hors ligne</p>
+                <button onclick="installPWA()" class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700">
+                  Installer maintenant
+                </button>
+              </div>
+              
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="font-semibold text-gray-800 mb-2">Matériel</h3>
+                <p class="text-sm text-gray-600">• Modules MAX7219: 1</p>
+                <p class="text-sm text-gray-600">• Résolution: 8x8 pixels</p>
+                <p class="text-sm text-gray-600">• Intensité: 5/15</p>
+                <p class="text-sm text-gray-600">• Pins: DATA=23, CLK=18, CS=5</p>
+              </div>
+              <div class="bg-gray-50 p-4 rounded-lg">
+                <h3 class="font-semibold text-gray-800 mb-2">Réseau</h3>
+                <p class="text-sm text-gray-600">• SSID: MAB-MIFI-S</p>
+                <p class="text-sm text-gray-600">• Mode: Client WiFi</p>
+                <p class="text-sm text-gray-600">• Port: 80</p>
+                <p class="text-sm text-gray-600">• IP ESP32: ${espIP || 'Non définie'}</p>
+              </div>
+              <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
+                <p class="text-sm font-semibold text-yellow-800 mb-2">Dépannage connexion:</p>
+                <ul class="text-xs text-yellow-700 space-y-1 list-disc ml-4">
+                  <li>Vérifiez que l'ESP32 est allumé</li>
+                  <li>Assurez-vous d'être sur le même réseau WiFi</li>
+                  <li>Vérifiez l'adresse IP dans le moniteur série</li>
+                  <li>Les headers CORS doivent être activés sur l'ESP32</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        if (deferredPrompt) {
+          document.getElementById('installSection').classList.remove('hidden');
+        }
+      }
+    }
+
+     {
+      function changeTab(tab) {
+      activeTab = tab;
+      hideError();
+      renderTabs();
+      renderContent();
+}
+
+    }
+
+    function renderColorSection() {
+      const section = document.getElementById('colorSection');
+      if (!section) return;
+
+      if (!useMultiColor) {
+        section.innerHTML = `
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-3">Couleur unique du message</label>
+            <div class="grid grid-cols-4 gap-3">
+              ${[
+                { name: 'Rouge', color: '#FF0000' },
+                { name: 'Vert', color: '#00FF00' },
+                { name: 'Bleu', color: '#0000FF' },
+                { name: 'Jaune', color: '#FFFF00' },
+                { name: 'Orange', color: '#FF8800' },
+                { name: 'Rose', color: '#FF00FF' },
+                { name: 'Cyan', color: '#00FFFF' },
+                { name: 'Blanc', color: '#FFFFFF' }
+              ].map(c => `
+                <button onclick="setSingleColor('${c.color}')" class="flex flex-col items-center p-3 rounded-xl border-2 transition-all ${singleColor === c.color ? 'border-blue-600 bg-blue-50 scale-105' : 'border-gray-300 bg-white hover:border-gray-400'}">
+                  <div class="w-10 h-10 rounded-full mb-1 shadow-md border-2 border-gray-200" style="background-color: ${c.color}"></div>
+                  <span class="text-xs font-medium text-gray-700">${c.name}</span>
+                  ${singleColor === c.color ? '<div class="text-blue-600 text-xs mt-1">✓</div>' : ''}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } else {
+        section.innerHTML = `
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-3">Couleurs multiples (dégradé)</label>
+            <div class="space-y-3" id="colorInputs"></div>
+            ${multiColors.length < 5 ? '<button onclick="addColor()" class="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-2 rounded-lg font-semibold mt-2 hover:from-blue-600 hover:to-purple-600">Ajouter une couleur</button>' : ''}
+            <div class="mt-4 p-4 rounded-lg" style="background: linear-gradient(90deg, ${multiColors.join(', ')})">
+              <p class="text-center text-white font-bold text-sm drop-shadow-lg">Aperçu du dégradé</p>
+            </div>
+          </div>
+        `;
+        
+        renderColorInputs();
+      }
+    }
+
+    function renderColorInputs() {
+      const container = document.getElementById('colorInputs');
+      if (!container) return;
+      
+      container.innerHTML = multiColors.map((color, i) => `
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-semibold text-gray-700 w-20">Couleur ${i + 1}:</span>
+          <input type="color" value="${color}" onchange="updateColor(${i}, this.value)" class="w-16 h-12 rounded-lg border-2 border-gray-300 cursor-pointer">
+          <div class="flex-1 bg-gray-100 px-3 py-2 rounded-lg">
+            <span class="text-sm font-mono text-gray-700">${color}</span>
+          </div>
+          ${multiColors.length > 2 ? `<button onclick="removeColor(${i})" class="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600">✕</button>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function applyCurrentStyle() {
+      const preview = document.getElementById('previewText');
+      if (!preview) return;
+
+      preview.className = 'font-bold text-2xl';
+      if (isAnimating) {
+        if (animEffect === 'scroll') preview.className += ' animate-scroll whitespace-nowrap';
+        else if (animEffect === 'blink') preview.className += ' animate-pulse';
+        else if (animEffect === 'fade') preview.className += ' animate-fade';
+      }
+
+      if (useMultiColor) {
+        preview.style.background = `linear-gradient(90deg, ${multiColors.join(', ')})`;
+        preview.style.webkitBackgroundClip = 'text';
+        preview.style.webkitTextFillColor = 'transparent';
+        preview.style.backgroundClip = 'text';
+        preview.style.color = 'transparent';
+      } else {
+        preview.style.color = singleColor;
+        preview.style.background = 'transparent';
+        preview.style.webkitBackgroundClip = 'unset';
+        preview.style.webkitTextFillColor = 'unset';
+        preview.style.backgroundClip = 'unset';
+      }
+    }
+
+    function toggleColorMode() {
+      useMultiColor = !useMultiColor;
+      renderContent();
+    }
+
+    function setSingleColor(color) {
+      singleColor = color;
+      renderColorSection();
+      applyCurrentStyle();
+    }
+
+    function addColor() {
+      if (multiColors.length < 5) {
+        multiColors.push('#FF00FF');
+        renderColorSection();
+        applyCurrentStyle();
+      }
+    }
+
+    function removeColor(index) {
+      if (multiColors.length > 2) {
+        multiColors.splice(index, 1);
+        renderColorSection();
+        applyCurrentStyle();
+      }
+    }
+
+    function updateColor(index, color) {
+      multiColors[index] = color;
+      renderColorSection();
+      applyCurrentStyle();
+    }
+
+    function setEffect(effect) {
+      animEffect = effect;
+      isAnimating = true;
+      renderContent();
+    }
+
+    function startAnim() {
+      isAnimating = true;
+      applyCurrentStyle();
+      renderContent();
+    }
+
+    function stopAnim() {
+      isAnimating = false;
+      applyCurrentStyle();
+      renderContent();
+    }
+
+    async function connectESP() {
+      espIP = document.getElementById('ipInput').value.trim();
+      
+      if (!espIP) {
+        showError('Veuillez entrer une adresse IP');
+        return;
+      }
+
+      isLoading = true;
+      hideError();
+      renderContent();
+
+      try {
+        const response = await fetch(`http://${espIP}/`, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-cache'
+        });
+
+        if (response.ok) {
+          isConnected = true;
+          updateStatus();
+          showError('✓ Connexion réussie à ' + espIP);
+          document.getElementById('errorAlert').classList.remove('bg-red-100', 'border-red-500', 'text-red-700');
+          document.getElementById('errorAlert').classList.add('bg-green-100', 'border-green-500', 'text-green-700');
+          setTimeout(() => hideError(), 3000);
+        } else {
+          showError('L\'ESP32 ne répond pas à cette adresse. Vérifiez l\'IP.');
+        }
+      } catch (error) {
+        console.error('Erreur connexion:', error);
+        showError(`Impossible de se connecter à l'ESP32.<br><br>
+          <strong>Vérifiez que:</strong><br>
+          • L'ESP32 est allumé et connecté au WiFi<br>
+          • Vous êtes sur le même réseau WiFi <br>
+          • L'adresse IP est correcte<br>
+          • Les headers CORS sont activés sur l'ESP32`);
+      } finally {
+        isLoading = false;
+        renderContent();
+      }
+    }
+
+    async function saveMessages() {
+      if (!isConnected) {
+        const header = document.querySelector('.bg-gradient-to-r.from-blue-600');
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'bg-yellow-500 text-white p-4 text-center font-semibold animate-pulse';
+        warningDiv.innerHTML = '⚠️ Cher utilisateur, veuillez vous connecter à l\'ESP32 d\'abord';
+        warningDiv.style.position = 'fixed';
+        warningDiv.style.top = '0';
+        warningDiv.style.left = '0';
+        warningDiv.style.right = '0';
+        warningDiv.style.zIndex = '9999';
+        document.body.insertBefore(warningDiv, document.body.firstChild);
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        setTimeout(() => {
+          warningDiv.remove();
+          changeTab('connection');
+        }, 4000);
+        
+        return;
+      }
+
+      messages.matin = document.getElementById('msgMatin').value;
+      messages.jour = document.getElementById('msgJour').value;
+      messages.soir = document.getElementById('msgSoir').value;
+
+      isLoading = true;
+      hideError();
+      renderContent();
+
+      try {
+        const url = `http://${espIP}/set?matin=${encodeURIComponent(messages.matin)}&jour=${encodeURIComponent(messages.jour)}&soir=${encodeURIComponent(messages.soir)}`;
+        
+        console.log('Envoi vers:', url);
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-cache',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+
+        console.log('Statut:', response.status);
+
+        if (response.ok) {
+          const confirmation = document.getElementById('confirmation');
+          if (confirmation) {
+            confirmation.classList.remove('hidden');
+            setTimeout(() => {
+              confirmation.classList.add('hidden');
+            }, 2500);
+          }
+        } else {
+          showError(`Erreur serveur (code ${response.status}). Vérifiez que l'ESP32 fonctionne correctement.`);
+        }
+      } catch (error) {
+        console.error('Erreur fetch:', error);
+        showError(`Erreur d'envoi des messages.<br><br>
+          <strong>Cause possible:</strong><br>
+          • L'ESP32 n'est plus connecté<br>
+          • Problème de réseau WiFi<br>
+          • CORS bloqué par le navigateur<br><br>
+          <strong>Solution:</strong> Vérifiez la connexion et réessayez.`);
+      } finally {
+        isLoading = false;
+        renderContent();
+      }
+    }
+
+    renderTabs();
+    renderContent();
+    updateStatus();
+    
+    console.log('Application chargée!');
+
+    initApp();
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(registration => {
+            console.log('Service Worker enregistré avec succès:', registration.scope);
+            
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('Nouvelle version disponible!');
+                  if (confirm('Une nouvelle version est disponible. Recharger?')) {
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
+                  }
+                }
+              });
+            });
+          })
+          .catch(error => {
+            console.log('Erreur d\'enregistrement du Service Worker:', error);
+          });
+      });
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+    }
+
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      console.log('PWA peut être installée');
+      
+      if (activeTab === 'settings') {
+        renderContent();
+      }
+    });
+
+    window.installPWA = async function() {
+      if (!deferredPrompt) {
+        alert('L\'application est déjà installée ou l\'installation n\'est pas disponible');
+        return;
+      }
+
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        console.log('PWA installée');
+      } else {
+        console.log('Installation PWA refusée');
+      }
+      
+      deferredPrompt = null;
+      renderContent();
+    };
+
+    window.addEventListener('appinstalled', () => {
+      console.log('PWA installée avec succès!');
+      deferredPrompt = null;
+      alert('Application installée avec succès!');
+    });
+  </script>
+</body>
+</html>
