@@ -94,15 +94,13 @@
 
 
    function initApp() {
-  // 1. Afficher le splash UNE FOIS
   showSplash = true;
   renderApp();
 
-  // 2. Après 6 secondes → afficher l'application
   setTimeout(() => {
     showSplash = false;
     activeTab = 'connection';
-    renderApp(); // ⚠️ UN SEUL render après splash
+    renderApp(); 
   }, 6000);
 }
 
@@ -558,13 +556,27 @@
         if (response.ok) {
           isConnected = true;
           updateStatus();
-          showError('✓ Connexion réussie à ' + espIP);
-          document.getElementById('errorAlert').classList.remove('bg-red-100', 'border-red-500', 'text-red-700');
-          document.getElementById('errorAlert').classList.add('bg-green-100', 'border-green-500', 'text-green-700');
-          setTimeout(() => hideError(), 3000);
-        } else {
-          showError('L\'ESP32 ne répond pas à cette adresse. Vérifiez l\'IP.');
+          showSuccess('Connexion réussie à ' + espIP);
         }
+
+          
+          function showSuccess(message) {
+  const alert = document.getElementById('errorAlert');
+  alert.innerHTML = `
+    <div class="flex justify-between items-start">
+      <div>
+        <p class="font-bold">✓ Succès</p>
+        <p class="text-sm">${message}</p>
+      </div>
+      <button onclick="hideError()" class="text-green-700 font-bold">✕</button>
+    </div>
+  `;
+  alert.classList.remove('hidden', 'bg-red-100', 'border-red-500', 'text-red-700');
+  alert.classList.add('bg-green-100', 'border-green-500', 'text-green-700');
+  setTimeout(() => hideError(), 3000);
+}
+
+
       } catch (error) {
         console.error('Erreur connexion:', error);
         showError(`Impossible de se connecter à l'ESP32.<br><br>
